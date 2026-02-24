@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Panchayat",
+    "slug": "panchayat",
+    "version": "1.0.1",
+    "icon": "./assets/icon.png",
+    "extra": {
+      "firebaseApiKey": "YOUR_FIREBASE_API_KEY",
+      "firebaseAuthDomain": "YOUR_AUTH_DOMAIN",
+      "firebaseProjectId": "YOUR_PROJECT_ID",
+      "firebaseStorageBucket": "YOUR_STORAGE_BUCKET",
+      "firebaseMessagingSenderId": "YOUR_SENDER_ID",
+      "firebaseAppId": "YOUR_APP_ID",
+      "eas": {
+        "projectId": "25d69fba-7b4f-49a1-9ae7-7dcde13c5769"
+      }
+    },
+    "android": {
+      "package": "com.ashwin.panchayat",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B35"
+      }
+      
+    }
+  }
+}
