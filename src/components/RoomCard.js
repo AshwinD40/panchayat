@@ -4,10 +4,19 @@ import { COLORS } from '../utils/theme';
 
 const RoomCard = ({ room, onPress }) => {
   const [timeLeft, setTimeLeft] = useState('');
+  const getExpiryTime = () => {
+    const expiry = room.expiresAt?.toDate
+      ? room.expiresAt.toDate().getTime()
+      : room.expiresAt instanceof Date
+        ? room.expiresAt.getTime()
+        : room.expiresAt;
+    return Number.isFinite(expiry) ? expiry : null;
+  };
 
   useEffect(() => {
     const tick = () => {
-      const expiry = room.expiresAt?.toDate ? room.expiresAt.toDate().getTime() : room.expiresAt;
+      const expiry = getExpiryTime();
+      if (!expiry) { setTimeLeft('--:--'); return; }
       const diff = expiry - Date.now();
       if (diff <= 0) { setTimeLeft('Expired'); return; }
       const h = Math.floor(diff / 3600000);
@@ -19,29 +28,41 @@ const RoomCard = ({ room, onPress }) => {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [room.expiresAt]);
 
   const isExpiringSoon = () => {
-    const expiry = room.expiresAt?.toDate ? room.expiresAt.toDate().getTime() : room.expiresAt;
+    const expiry = getExpiryTime();
+    if (!expiry) return false;
     return (expiry - Date.now()) <= 5 * 60 * 1000;
   };
 
+  const getAvatarLetter = () => {
+    return room.name ? room.name.charAt(0).toUpperCase() : '?';
+  };
+
+  const getAvatarColor = () => {
+    const colors = [
+      '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981',
+      '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#D946EF', '#F43F5E'
+    ];
+    const letter = getAvatarLetter();
+    const index = letter.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.header}>
-        <View style={[styles.typeBadge, { backgroundColor: room.isPrivate ? COLORS.private : COLORS.public }]}>
-          <Text style={styles.typeBadgeText}>{room.isPrivate ? '🔒 Private' : '🌐 Public'}</Text>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.row}>
+        <View style={[styles.avatar, { backgroundColor: getAvatarColor() }]}>
+          <Text style={styles.avatarText}>{getAvatarLetter()}</Text>
         </View>
-        <View style={[styles.timerBadge, { backgroundColor: isExpiringSoon() ? '#FEF2F2' : '#F0FDF4' }]}>
-          <Text style={[styles.timerText, { color: isExpiringSoon() ? COLORS.timerRed : COLORS.timerGreen }]}>
-            ⏳ {timeLeft}
+        <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
+        <View style={styles.rightInfo}>
+          <Text style={[styles.timer, isExpiringSoon() && styles.timerUrgent]}>
+            {timeLeft}
           </Text>
+          <Text style={styles.area}>📍 {room.area}</Text>
         </View>
-      </View>
-      <Text style={styles.roomName}>{room.name}</Text>
-      <View style={styles.footer}>
-        <Text style={styles.area}>📍 {room.area}</Text>
-        <Text style={styles.roomId}>ID: {room.roomId}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -49,19 +70,56 @@ const RoomCard = ({ room, onPress }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08,
-    shadowRadius: 8, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#FF6B35',
+    backgroundColor: COLORS.surfaceGlass,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
   },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  typeBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  typeBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  timerBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  timerText: { fontSize: 12, fontWeight: '700' },
-  roomName: { fontSize: 18, fontWeight: '700', color: '#1A1A2E', marginBottom: 10 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  area: { fontSize: 13, color: '#6B7280' },
-  roomId: { fontSize: 11, color: '#9CA3AF', fontFamily: 'monospace' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  roomName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+    flex: 1,
+    marginRight: 12,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  rightInfo: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  timer: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.timerGreen,
+    fontVariant: ['tabular-nums'],
+  },
+  timerUrgent: {
+    color: COLORS.timerRed,
+  },
+  area: {
+    fontSize: 11,
+    color: COLORS.textLight,
+  },
 });
 
 export default RoomCard;

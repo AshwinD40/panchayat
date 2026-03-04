@@ -6,39 +6,66 @@ import { COLORS, WARNING_THRESHOLD_MS } from '../utils/theme';
 const CountdownTimer = ({ expiresAt, onExpire }) => {
   const [timeLeft, setTimeLeft] = useState(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const hasExpiredRef = useRef(false);
 
   useEffect(() => {
     if (!expiresAt) return;
+    hasExpiredRef.current = false;
 
+    let interval;
     const tick = () => {
       const now = Date.now();
-      const expiry = expiresAt?.toDate ? expiresAt.toDate().getTime() : expiresAt;
+      const expiry = expiresAt?.toDate
+        ? expiresAt.toDate().getTime()
+        : expiresAt instanceof Date
+          ? expiresAt.getTime()
+          : expiresAt; // Assume it's a timestamp in ms
+
+      if (!Number.isFinite(expiry)) {
+        setTimeLeft(null);
+        return;
+      }
+
       const diff = expiry - now;
 
       if (diff <= 0) {
         setTimeLeft(0);
-        onExpire && onExpire();
+        if (!hasExpiredRef.current) {
+          hasExpiredRef.current = true;
+          onExpire && onExpire();
+        }
+        clearInterval(interval);
         return;
       }
       setTimeLeft(diff);
     };
 
     tick();
-    const interval = setInterval(tick, 1000);
+    interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [expiresAt]);
+  }, [expiresAt, onExpire]);
 
   useEffect(() => {
+    let pulseLoop;
     if (timeLeft !== null && timeLeft <= WARNING_THRESHOLD_MS && timeLeft > 0) {
       // Pulse animation when under 5 minutes
-      Animated.loop(
+      pulseLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      pulseLoop.start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
     }
-  }, [timeLeft <= WARNING_THRESHOLD_MS]);
+    return () => {
+      if (pulseLoop) {
+        pulseLoop.stop();
+      }
+    };
+  }, [timeLeft, pulseAnim]);
 
   if (timeLeft === null) return null;
 
@@ -75,7 +102,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 20,
@@ -89,6 +116,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.5,
+    fontVariant: ['tabular-nums'],
   },
 });
 

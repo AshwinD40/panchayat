@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, Switch, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator,
   KeyboardAvoidingView, Platform, StatusBar, Modal
 } from 'react-native';
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { db, isFirebaseConfigured, firebaseConfigError } from '../../firebase';
 import { generateRoomCode } from '../utils/nameGenerator';
 import { COLORS, ROOM_DURATION_MS } from '../utils/theme';
 import { INDIAN_CITIES } from '../utils/locationHelper';
@@ -16,7 +16,6 @@ const CreateRoomScreen = ({ route, navigation }) => {
 
   const [roomName, setRoomName] = useState('');
   const [selectedArea, setSelectedArea] = useState(currentArea || '');
-  const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAreaPicker, setShowAreaPicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
@@ -41,6 +40,16 @@ const CreateRoomScreen = ({ route, navigation }) => {
       Alert.alert('Name too short', 'Room name must be at least 3 characters.');
       return;
     }
+    if (!isFirebaseConfigured) {
+      Alert.alert('Firebase Setup Required', firebaseConfigError || 'Firebase config missing.');
+      return;
+    }
+
+    const { auth } = await import('../../firebase');
+    if (!auth.currentUser) {
+      Alert.alert('Not signed in', 'Please restart the app and try again.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -48,16 +57,17 @@ const CreateRoomScreen = ({ route, navigation }) => {
       const now = new Date();
       const expiresAt = new Date(now.getTime() + ROOM_DURATION_MS);
 
+      const creatorUid = userId || auth.currentUser.uid;
       const roomData = {
         name: trimName,
         roomId,
         area: selectedArea,
-        isPrivate,
-        creatorId: userId,
-        creatorName: displayName,
+        creatorId: creatorUid,
+        creatorName: displayName || 'Anonymous',
+        members: [creatorUid],
+        memberCount: 1,
         createdAt: Timestamp.fromDate(now),
         expiresAt: Timestamp.fromDate(expiresAt),
-        memberCount: 1,
       };
 
       const docRef = await addDoc(collection(db, 'rooms'), roomData);
@@ -70,53 +80,62 @@ const CreateRoomScreen = ({ route, navigation }) => {
       });
     } catch (error) {
       console.error('Create room error:', error);
-      Alert.alert('Error', 'Could not create room. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to create room.');
       setLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#000' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.headerBg} />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Room</Text>
-        <View style={{ width: 60 }} />
+        <Text style={styles.headerTitle}>New Room</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
 
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoBannerText}>
-            ⏳ This room will auto-delete in <Text style={{ fontWeight: '800' }}>3 hours</Text>
+        {/* Timer info */}
+        <View style={styles.timerInfo}>
+          <Text style={styles.timerIcon}>⏳</Text>
+          <Text style={styles.timerText}>
+            Auto-deletes in <Text style={styles.timerBold}>3 hours</Text>
           </Text>
         </View>
 
-        {/* Step 1: Location */}
-        <Text style={styles.sectionLabel}>STEP 1 — Choose Location</Text>
+        {/* Location */}
+        <Text style={styles.label}>LOCATION</Text>
         <TouchableOpacity
-          style={styles.areaSelector}
+          style={styles.fieldCard}
           onPress={() => setShowAreaPicker(true)}
+          activeOpacity={0.7}
         >
-          <Text style={selectedArea ? styles.areaSelectorText : styles.areaSelectorPlaceholder}>
-            📍 {selectedArea || 'Tap to select area...'}
-          </Text>
-          <Text style={styles.arrowText}>▼</Text>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldIcon}>📍</Text>
+            <Text style={selectedArea ? styles.fieldValue : styles.fieldPlaceholder}>
+              {selectedArea || 'Select area'}
+            </Text>
+            <Text style={styles.fieldArrow}>›</Text>
+          </View>
         </TouchableOpacity>
 
-        {/* Step 2: Room Name */}
-        <Text style={styles.sectionLabel}>STEP 2 — Room Name</Text>
-        <View style={styles.inputWrapper}>
+        {/* Room Name */}
+        <Text style={styles.label}>ROOM NAME</Text>
+        <View style={styles.fieldCard}>
           <TextInput
-            style={styles.input}
+            style={styles.textInput}
             placeholder="e.g. Surat Farmers Talk"
             placeholderTextColor={COLORS.textLight}
             value={roomName}
@@ -126,46 +145,24 @@ const CreateRoomScreen = ({ route, navigation }) => {
           <Text style={styles.charCount}>{roomName.length}/{MAX_NAME_LENGTH}</Text>
         </View>
 
-        {/* Step 3: Privacy */}
-        <Text style={styles.sectionLabel}>STEP 3 — Privacy</Text>
-        <View style={styles.privacyCard}>
-          <View style={styles.privacyRow}>
-            <View>
-              <Text style={styles.privacyTitle}>
-                {isPrivate ? '🔒 Private Room' : '🌐 Public Room'}
-              </Text>
-              <Text style={styles.privacyDesc}>
-                {isPrivate
-                  ? 'Only people with the Room ID can join'
-                  : 'Anyone in your area can see and join'}
-              </Text>
-            </View>
-            <Switch
-              value={isPrivate}
-              onValueChange={setIsPrivate}
-              trackColor={{ false: COLORS.border, true: COLORS.private }}
-              thumbColor={isPrivate ? '#fff' : '#fff'}
-            />
-          </View>
+        {/* Info note */}
+        <View style={styles.infoNote}>
+          <Text style={styles.infoNoteText}>
+            🌐  Everyone in your area can find and join this room
+          </Text>
         </View>
 
-        {/* Room ID Preview */}
-        <View style={styles.previewCard}>
-          <Text style={styles.previewLabel}>Your room will get a unique 8-character ID</Text>
-          <Text style={styles.previewSample}>e.g. ABCD5678</Text>
-          <Text style={styles.previewHint}>Share this ID with others to invite them directly</Text>
-        </View>
-
-        {/* Create Button */}
+        {/* Create */}
         <TouchableOpacity
-          style={[styles.createBtn, loading && { opacity: 0.7 }]}
+          style={[styles.createBtn, loading && { opacity: 0.6 }]}
           onPress={handleCreate}
           disabled={loading}
+          activeOpacity={0.8}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.createBtnText}>Create Room 🚀</Text>
+            <Text style={styles.createBtnText}>Create Room</Text>
           )}
         </TouchableOpacity>
 
@@ -178,36 +175,71 @@ const CreateRoomScreen = ({ route, navigation }) => {
         animationType="slide"
         onRequestClose={() => setShowAreaPicker(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '75%' }]}>
-            <Text style={styles.modalTitle}>📍 Select Area</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Search city..."
-              value={citySearch}
-              onChangeText={setCitySearch}
-              placeholderTextColor={COLORS.textLight}
-              autoFocus
-            />
-            <ScrollView>
-              {filteredCities.map((city) => (
-                <TouchableOpacity
-                  key={city}
-                  style={[styles.cityItem, selectedArea === city && styles.cityItemSelected]}
-                  onPress={() => {
-                    setSelectedArea(city);
-                    setShowAreaPicker(false);
-                    setCitySearch('');
-                  }}
-                >
-                  <Text style={[styles.cityItemText, selectedArea === city && { color: COLORS.primary, fontWeight: '700' }]}>
-                    {city} {selectedArea === city ? '✓' : ''}
-                  </Text>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            {/* Handle */}
+            <View style={styles.pickerHandle} />
+
+            {/* Title */}
+            <Text style={styles.pickerTitle}>Select Area</Text>
+
+            {/* Search */}
+            <View style={styles.searchBar}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search city..."
+                value={citySearch}
+                onChangeText={setCitySearch}
+                placeholderTextColor={COLORS.textLight}
+                autoFocus
+              />
+              {citySearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCitySearch('')}>
+                  <Text style={styles.searchClear}>✕</Text>
                 </TouchableOpacity>
-              ))}
+              )}
+            </View>
+
+            {/* City List */}
+            <ScrollView
+              style={styles.cityList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredCities.map((city) => {
+                const isSelected = selectedArea === city;
+                return (
+                  <TouchableOpacity
+                    key={city}
+                    style={[styles.cityRow, isSelected && styles.cityRowActive]}
+                    onPress={() => {
+                      setSelectedArea(city);
+                      setShowAreaPicker(false);
+                      setCitySearch('');
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={[styles.cityName, isSelected && styles.cityNameActive]}>
+                      {city}
+                    </Text>
+                    {isSelected && <Text style={styles.cityCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+              {filteredCities.length === 0 && (
+                <View style={styles.noResults}>
+                  <Text style={styles.noResultsText}>No cities found</Text>
+                </View>
+              )}
             </ScrollView>
-            <TouchableOpacity onPress={() => setShowAreaPicker(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
+
+            {/* Close */}
+            <TouchableOpacity
+              style={styles.pickerDoneBtn}
+              onPress={() => { setShowAreaPicker(false); setCitySearch(''); }}
+            >
+              <Text style={styles.pickerDoneText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -217,141 +249,194 @@ const CreateRoomScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // Header
   header: {
-    backgroundColor: COLORS.headerBg,
-    paddingTop: 52,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
+    backgroundColor: '#000',
+    paddingTop: Platform.OS === 'ios' ? 56 : 44,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  backBtn: { width: 60 },
-  backText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  container: { flex: 1, backgroundColor: COLORS.background },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  backArrow: { color: COLORS.primary, fontSize: 32, fontWeight: '300' },
+  headerTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' },
+
+  // Main
+  container: { flex: 1, backgroundColor: '#000' },
   content: { padding: 20, paddingBottom: 60 },
-  infoBanner: {
-    backgroundColor: '#FFF3CD',
+
+  // Timer info
+  timerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(251,191,36,0.08)',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.15)',
   },
-  infoBannerText: { color: '#856404', fontSize: 14 },
-  sectionLabel: {
+  timerIcon: { fontSize: 14, marginRight: 8 },
+  timerText: { color: COLORS.textSecondary, fontSize: 13 },
+  timerBold: { color: COLORS.timerOrange, fontWeight: '700' },
+
+  // Labels
+  label: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textSecondary,
-    letterSpacing: 1,
+    color: COLORS.textLight,
+    letterSpacing: 1.5,
     marginBottom: 8,
-    marginTop: 8,
+    marginTop: 4,
   },
-  areaSelector: {
-    backgroundColor: COLORS.surface,
+
+  // Field cards
+  fieldCard: {
+    backgroundColor: COLORS.surfaceGlass,
     borderRadius: 14,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  fieldRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  areaSelectorText: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  areaSelectorPlaceholder: { color: COLORS.textLight, fontSize: 16 },
-  arrowText: { color: COLORS.textSecondary },
-  inputWrapper: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    marginBottom: 20,
-    position: 'relative',
-  },
-  input: {
-    padding: 16,
+  fieldIcon: { fontSize: 16, marginRight: 10 },
+  fieldValue: { color: COLORS.text, fontSize: 16, fontWeight: '500', flex: 1 },
+  fieldPlaceholder: { color: COLORS.textLight, fontSize: 16, flex: 1 },
+  fieldArrow: { color: COLORS.textLight, fontSize: 22, fontWeight: '300' },
+
+  // Text input
+  textInput: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 16,
     color: COLORS.text,
+    paddingRight: 60,
   },
   charCount: {
     position: 'absolute',
-    right: 12,
-    bottom: 12,
+    right: 16,
+    top: 18,
     fontSize: 11,
     color: COLORS.textLight,
   },
-  privacyCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+
+  // Info note
+  infoNote: {
+    backgroundColor: COLORS.surfaceGlass,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
   },
-  privacyRow: {
+  infoNoteText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+
+  // Create button
+  createBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 18,
+    borderRadius: 14,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  createBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+
+  // Picker modal
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: '#0D0D0D',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '80%',
+  },
+  pickerHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  pickerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+
+  // Search
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceGlass,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  searchIcon: { fontSize: 14, marginRight: 10 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  searchClear: { color: COLORS.textLight, fontSize: 16, padding: 4 },
+
+  // City list
+  cityList: { marginTop: 4 },
+  cityRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  privacyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  privacyDesc: { fontSize: 13, color: COLORS.textSecondary, maxWidth: '80%' },
-  previewCard: {
-    backgroundColor: '#F0FFF4',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 28,
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-    alignItems: 'center',
-  },
-  previewLabel: { color: COLORS.textSecondary, fontSize: 13, marginBottom: 6 },
-  previewSample: { fontSize: 22, fontWeight: '900', color: COLORS.success, letterSpacing: 2, fontFamily: 'monospace' },
-  previewHint: { color: COLORS.textSecondary, fontSize: 12, marginTop: 6, textAlign: 'center' },
-  createBtn: {
-    backgroundColor: COLORS.primary,
-    padding: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  createBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 12 },
-  modalInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  cityItem: {
     paddingVertical: 14,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  cityItemSelected: { backgroundColor: '#FFF5F0' },
-  cityItemText: { fontSize: 16, color: COLORS.text },
-  cancelText: { color: COLORS.textSecondary, textAlign: 'center', fontSize: 15, marginTop: 16 },
+  cityRowActive: {
+    borderBottomColor: 'rgba(255,107,53,0.3)',
+  },
+  cityName: { fontSize: 16, color: COLORS.textSecondary },
+  cityNameActive: { color: COLORS.primary, fontWeight: '700' },
+  cityCheck: { color: COLORS.primary, fontSize: 16, fontWeight: '700' },
+  noResults: { paddingVertical: 32, alignItems: 'center' },
+  noResultsText: { color: COLORS.textLight, fontSize: 14 },
+
+  // Done button
+  pickerDoneBtn: {
+    marginTop: 12,
+    backgroundColor: COLORS.surfaceGlass,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+  },
+  pickerDoneText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 15 },
 });
 
 export default CreateRoomScreen;

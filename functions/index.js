@@ -1,12 +1,27 @@
-// functions/index.js
-// Firebase Cloud Functions - Server-side auto-delete for expired rooms
-// Deploy with: firebase deploy --only functions
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
 const db = admin.firestore();
+const MAX_BATCH_SIZE = 450;
+
+const commitDeleteInChunks = async (docRefs) => {
+  for (let i = 0; i < docRefs.length; i += MAX_BATCH_SIZE) {
+    const batch = db.batch();
+    docRefs.slice(i, i + MAX_BATCH_SIZE).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+};
+
+const deleteRoomMessages = async (roomId) => {
+  const messagesSnap = await db.collection('rooms').doc(roomId).collection('messages').get();
+  if (messagesSnap.empty) {
+    return 0;
+  }
+  await commitDeleteInChunks(messagesSnap.docs.map((docSnap) => docSnap.ref));
+  return messagesSnap.size;
+};
 
 /**
  * Scheduled function: runs every 30 minutes
@@ -29,29 +44,13 @@ exports.deleteExpiredRooms = functions.pubsub
       }
 
       console.log(`Found ${expiredRooms.size} expired rooms to delete.`);
-
-      const batch = db.batch();
-      const messageDeletePromises = [];
-
+      let deletedMessagesCount = 0;
       for (const roomDoc of expiredRooms.docs) {
-        // Delete all messages in the room subcollection
-        const messagesRef = db.collection('rooms').doc(roomDoc.id).collection('messages');
-        const msgPromise = messagesRef.get().then((msgs) => {
-          const msgBatch = db.batch();
-          msgs.docs.forEach((msgDoc) => msgBatch.delete(msgDoc.ref));
-          return msgBatch.commit();
-        });
-        messageDeletePromises.push(msgPromise);
-
-        // Delete the room document
-        batch.delete(roomDoc.ref);
+        deletedMessagesCount += await deleteRoomMessages(roomDoc.id);
       }
 
-      // Wait for all message deletions, then delete rooms
-      await Promise.all(messageDeletePromises);
-      await batch.commit();
-
-      console.log(`Deleted ${expiredRooms.size} expired rooms.`);
+      await commitDeleteInChunks(expiredRooms.docs.map((roomDoc) => roomDoc.ref));
+      console.log(`Deleted ${expiredRooms.size} expired rooms and ${deletedMessagesCount} messages.`);
       return null;
     } catch (error) {
       console.error('Error deleting expired rooms:', error);
@@ -67,14 +66,10 @@ exports.onRoomDeleted = functions.firestore
   .document('rooms/{roomId}')
   .onDelete(async (snap, context) => {
     const roomId = context.params.roomId;
-    const messagesRef = db.collection('rooms').doc(roomId).collection('messages');
 
     try {
-      const messages = await messagesRef.get();
-      const batch = db.batch();
-      messages.docs.forEach((doc) => batch.delete(doc.ref));
-      await batch.commit();
-      console.log(`Cleaned up messages for deleted room: ${roomId}`);
+      const deleted = await deleteRoomMessages(roomId);
+      console.log(`Cleaned up ${deleted} messages for deleted room: ${roomId}`);
     } catch (error) {
       console.error('Error cleaning messages on room delete:', error);
     }

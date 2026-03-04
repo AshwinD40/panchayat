@@ -1,16 +1,17 @@
 // src/screens/SplashScreen.js
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Animated, StatusBar
+  View, Text, StyleSheet, Animated, StatusBar, Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { signInUser } from '../../firebase';
+import { signInUser, isFirebaseConfigured, firebaseConfigError } from '../../firebase';
 import { generateDisplayName } from '../utils/nameGenerator';
 import { COLORS } from '../utils/theme';
 
 const SplashScreen = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     Animated.parallel([
@@ -19,41 +20,55 @@ const SplashScreen = ({ navigation }) => {
     ]).start();
 
     initUser();
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, []);
 
   const initUser = async () => {
     try {
-      // Check for existing user
       let userId = await AsyncStorage.getItem('userId');
       let displayName = await AsyncStorage.getItem('displayName');
 
-      if (!userId || !displayName) {
-        // Create new anonymous Firebase user
+      if (isFirebaseConfigured) {
+        // Always sign in fresh to ensure valid auth token
         const user = await signInUser();
         userId = user.uid;
+      } else {
+        userId = userId || 'local_' + Date.now();
+        Alert.alert(
+          'Firebase Setup Required',
+          firebaseConfigError || 'Firebase config is missing. Add values in app.json -> expo.extra.'
+        );
+      }
+
+      if (!displayName) {
         displayName = generateDisplayName();
-        await AsyncStorage.setItem('userId', userId);
         await AsyncStorage.setItem('displayName', displayName);
       }
 
-      // Short splash delay for branding
-      setTimeout(() => {
+      await AsyncStorage.setItem('userId', userId);
+
+      timeoutRef.current = setTimeout(() => {
         navigation.replace('Home');
       }, 2200);
     } catch (error) {
-      console.error('Init error:', error);
-      // Fallback: generate local user without Firebase
+      if (isFirebaseConfigured) {
+        console.error('Init error:', error);
+      }
       const fallbackId = 'local_' + Date.now();
       const fallbackName = generateDisplayName();
       await AsyncStorage.setItem('userId', fallbackId);
       await AsyncStorage.setItem('displayName', fallbackName);
-      setTimeout(() => navigation.replace('Home'), 2000);
+      timeoutRef.current = setTimeout(() => navigation.replace('Home'), 2000);
     }
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
       <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
         <Text style={styles.logo}>🏘️</Text>
         <Text style={styles.title}>Panchayat</Text>

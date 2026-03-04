@@ -25,8 +25,8 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+        <SafeAreaProvider style={{ backgroundColor: '#000' }}>
           <AppNavigator />
         </SafeAreaProvider>
       </GestureHandlerRootView>
