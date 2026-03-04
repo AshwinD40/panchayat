@@ -1,270 +1,85 @@
-# 🏘️ Panchayat - Hyperlocal Community Chat
+# 🏘️ Panchayat
 
-> Ephemeral community rooms tied to your location. Every room vanishes in **3 hours**.
+This is my personal documentation for the Panchayat app. I built this app to create ephemeral (temporary), location-based chat rooms that disappear after 3 hours. 
 
----
-
-## 📱 Features
-- 🔐 Auto-generated anonymous identity (e.g. `SwiftLion#4821`)
-- 📍 GPS-based room discovery + manual city selection fallback
-- 🌐 Public rooms visible to everyone in the area
-- 🔒 Private rooms accessible only via shared Room ID
-- ⏳ All rooms auto-delete after **3 hours** (server + client enforced)
-- 🔔 5-minute expiry warning banner in chat
-- 📤 Share Room ID to invite anyone directly
+### 📱 Scan to Play (Expo)
+*(Add your EAS or Expo Go QR code image here so you can easily install it on phones)*
+![Expo QR Code Placeholder](https://via.placeholder.com/200?text=Paste+QR+Code+Here)
 
 ---
 
-## 🛠️ Prerequisites
+## 🔄 How the App Flows
 
-Install these tools before starting:
+1. **Splash Screen (`SplashScreen.js`)**
+   - The app opens with a cool animation.
+   - It checks `AsyncStorage` (local phone memory) to see if you have an ID and a Display Name.
+   - If not, it generates them for you (e.g., `SwiftLion#4821`).
+   - It also automatically logs you in anonymously to Firebase.
+   - After 2 seconds, it instantly swaps to the Home Screen.
 
+2. **Home Screen (`HomeScreen.js`)**
+   - You land on a clean, dark, glass-themed dashboard.
+   - Up top, you see your auto-generated username in a pill shape.
+   - **Tabs**: You have two main tabs:
+     - **My Rooms**: Shows rooms you've joined or created.
+     - **Public Rooms**: Shows rooms created by others in a specific city.
+   - **Location**: In Public Rooms, you can pick a city (like "Surat" or "Delhi"). The app filters rooms based on that city.
+   - **Joining**: Tap a room to join. If you aren't in it yet, a pop-up asks if you want to join. Once you join, it moves to your "My Rooms" tab.
+   - **Creating**: The `+ Create Room` button at the bottom takes you to the creation screen.
+
+3. **Create Room Screen (`CreateRoomScreen.js`)**
+   - A sleek form where you type the Room Name and select the City.
+   - When you hit "Create", it saves the room to the Firestore database with an expiration time of exactly 3 hours from now.
+
+4. **Chat Screen (`ChatScreen.js`)**
+   - **Header**: Shows the room's dynamic colorful avatar, name, and a live countdown timer. Tap the header to open the `RoomInfoSheet`.
+   - **Room Info**: A slick bottom sheet that slides up to show the Location, Member count, Timer, and the large Room ID so you can share it.
+   - **Messaging**: The chat looks like WhatsApp (bubbles on right for you, left for others). System messages ("SwiftLion joined") show up quietly in the middle.
+   - **Input**: A bold, Telegram-style input bar at the bottom.
+   - **Auto-Delete**: When the timer hits 00:00:00, the room closes and kicks you back to the home screen.
+
+---
+
+## 🧠 The Logic (Plain English)
+
+**Firebase Database (Firestore)**
+Everything lives in a collection called `rooms`. Each room is a document. Inside each room document, there is a sub-collection called `messages`.
+- **Querying**: On the Home Screen, we ask Firebase: *"Give me all rooms where the Area is 'Surat' and the ExpiresAt time is greater than right now."* 
+- **Auto-Cleaning**: The app is smart. When it downloads the list of rooms, if it sees a room that is past its expiry time, it quietly deletes it from Firebase. We also have a Cloud Function server script that sweeps the database every 30 minutes to delete expired rooms automatically.
+- **State Management**: We use `useCallback`, `useMemo`, and `React.memo` to make sure the app doesn't slow down or lag when you are typing fast in the chat.
+
+**Navigation**
+We use `@react-navigation/native-stack`. When you move between screens, they don't slide wildly; they do a smooth cinematic cross-fade. We force the background of the app to be pitch black (`#000`), so there is no ugly white flash between pages.
+
+---
+
+## 🚀 Version History
+
+### Version 1: The Basics (MVP)
+The first version was all about making the logic work. 
+- **Looks**: Basic white/light theme. Standard buttons and inputs.
+- **Features**: Real-time messaging, a basic 3-hour countdown, location-based filtering, and a Room ID you could copy. 
+- **Problems**: Looked a bit boring, had a clunky layout where the Room ID and member counts took up too much space on the screen, and transitions felt stiff.
+
+### Version 2: The "Glass" Redesign (Current)
+This is the massive glow-up. We focused heavily on UX (User Experience) and UI (User Interface).
+- **Aesthetic**: Complete pitch-black Dark Mode with "Glassmorphism" (semi-transparent backgrounds that look like frosted glass).
+- **Navigation**: Buttery smooth iOS-style fade transitions. No more white flashes.
+- **Room Avatars**: Every room now automatically gets a circular logo with its first letter and a dynamic, vibrant background color so it's easy to recognize.
+- **Chat Experience**: Cleaned up the header. Moved all the boring stats (Room ID, Location, Members) hiding inside a smooth sliding `RoomInfoSheet` that opens when you tap the header.
+- **Input**: Replaced the basic text box with a bold, rounded Telegram-style input that has a glowing orange Send button.
+- **Performance**: Fixed lag spikes while navigating and typing by optimizing how the lists render.
+
+---
+
+## 💻 Commands to remember
+
+**Run the app locally:**
 ```bash
-# Node.js (v18+): https://nodejs.org
-node --version
-
-# Expo CLI
-npm install -g expo-cli eas-cli
-
-# Firebase CLI
-npm install -g firebase-tools
-firebase login
+npx expo start -c
 ```
 
----
-
-## 🔥 Step 1: Set Up Firebase
-
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Click **"Add project"** → Name it `panchayat`
-3. Disable Google Analytics (optional) → Create project
-
-### Enable Services:
-- **Authentication**: Go to Build → Authentication → Get Started → Enable **Anonymous** sign-in
-- **Firestore**: Go to Build → Firestore Database → Create database → Start in **production mode** → Choose a region close to India (e.g. `asia-south1`)
-
-### Get Config:
-- Go to Project Settings (gear icon) → Your Apps → Click **</>** (Web)
-- Register app as `panchayat-web` → Copy the firebaseConfig object
-
-### Add Config to Project:
-Open `firebase.js` and replace the placeholder values:
-
-```js
-const firebaseConfig = {
-  apiKey: "YOUR_ACTUAL_API_KEY",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
-};
-```
-
-### Deploy Firestore Rules & Indexes:
+**Build an APK for Android (to share via link):**
 ```bash
-firebase init firestore   # Select your project, use existing files
-firebase deploy --only firestore:rules
-firebase deploy --only firestore:indexes
+eas build -p android --profile preview
 ```
-
----
-
-## ☁️ Step 2: Deploy Cloud Functions (Auto-Delete)
-
-Cloud Functions run every 30 minutes to delete expired rooms on the server.
-
-```bash
-# Upgrade to Firebase Blaze plan (required for scheduled functions)
-# Go to Firebase Console → Upgrade → Blaze (pay-as-you-go, free up to limits)
-
-cd functions
-npm install
-
-cd ..
-firebase init functions   # Choose your project, select existing functions/index.js
-firebase deploy --only functions
-```
-
-✅ You'll see `deleteExpiredRooms` and `onRoomDeleted` in your Firebase Console → Functions.
-
----
-
-## 📦 Step 3: Install & Run the App
-
-```bash
-# In the project root
-npm install
-
-# Start Expo dev server
-npx expo start
-
-# Scan QR code with Expo Go app on your Android phone
-# OR press 'a' to launch Android emulator
-```
-
----
-
-## 🚀 Step 4: Build for Google Play Store
-
-### Setup EAS:
-```bash
-# Login to Expo
-eas login
-
-# Configure EAS in your project
-eas build:configure
-```
-
-### Update app.json:
-```json
-{
-  "expo": {
-    "android": {
-      "package": "com.yourname.panchayat"  // ← Change to your unique package name
-    },
-    "extra": {
-      "eas": {
-        "projectId": "your-eas-project-id"  // ← From: eas build:configure output
-      }
-    }
-  }
-}
-```
-
-### Build Android APK/AAB:
-```bash
-# Build APK (for direct install on your phone)
-eas build --platform android --profile preview
-
-# Build AAB (for Google Play Store submission)
-eas build --platform android --profile production
-```
-
-### Create eas.json (if not auto-created):
-```json
-{
-  "cli": { "version": ">= 5.0.0" },
-  "build": {
-    "preview": {
-      "android": { "buildType": "apk" }
-    },
-    "production": {
-      "android": { "buildType": "app-bundle" }
-    }
-  }
-}
-```
-
-### Download & Install:
-- After build completes, Expo will give you a **download link**
-- For preview APK: Download → Install directly on your phone
-- For Play Store: Upload the `.aab` file at [play.google.com/console](https://play.google.com/console)
-
----
-
-## 📁 Project Structure
-
-```
-panchayat/
-├── App.js                          # Root entry point
-├── app.json                        # Expo configuration
-├── firebase.js                     # Firebase setup ⚠️ Add your config here
-├── firestore.rules                 # Firestore security rules
-├── firestore.indexes.json          # Required query indexes
-├── firebase.json                   # Firebase project config
-│
-├── functions/
-│   ├── index.js                    # Cloud Functions (auto-delete rooms)
-│   └── package.json
-│
-└── src/
-    ├── navigation/
-    │   └── AppNavigator.js         # Stack navigation setup
-    │
-    ├── screens/
-    │   ├── SplashScreen.js         # Onboarding + user init
-    │   ├── HomeScreen.js           # Browse local/all rooms
-    │   ├── CreateRoomScreen.js     # Create new room
-    │   └── ChatScreen.js           # Real-time chat + timer
-    │
-    ├── components/
-    │   ├── CountdownTimer.js       # ⏳ Animated countdown widget
-    │   └── RoomCard.js             # Room list card
-    │
-    └── utils/
-        ├── nameGenerator.js        # Generate display names + room IDs
-        ├── locationHelper.js       # GPS + reverse geocoding + city list
-        └── theme.js                # Colors, constants
-```
-
----
-
-## 🗄️ Firestore Data Structure
-
-```
-rooms/{auto-id}
-  ├── name: "Surat Farmers Talk"
-  ├── roomId: "ABCD5678"          ← 8-char shareable ID
-  ├── area: "Surat"
-  ├── isPrivate: false
-  ├── creatorId: "firebase-uid"
-  ├── creatorName: "SwiftLion#4821"
-  ├── createdAt: Timestamp
-  ├── expiresAt: Timestamp        ← createdAt + 3 hours
-  └── messages/{auto-id}
-        ├── text: "Hello!"
-        ├── senderId: "firebase-uid"
-        ├── senderName: "SwiftLion#4821"
-        └── createdAt: Timestamp
-```
-
----
-
-## ⏳ How 3-Hour Auto-Delete Works
-
-| Layer | How |
-|-------|-----|
-| **Client** | `CountdownTimer` hits 0 → calls `handleExpire()` → deletes room doc → navigates back |
-| **Client (list)** | `HomeScreen` checks `expiresAt` on every snapshot → removes expired rooms locally |
-| **Server** | `deleteExpiredRooms` Cloud Function runs every **30 minutes** → bulk deletes expired rooms + their messages |
-| **Server trigger** | `onRoomDeleted` function fires whenever a room doc is deleted → cleans up messages subcollection |
-
----
-
-## 🎨 Color Guide
-
-| Color | Use |
-|-------|-----|
-| `#FF6B35` Orange | Primary brand, my chat bubbles |
-| `#1A1A2E` Dark Slate | Header backgrounds |
-| `#10B981` Green | Timer (plenty of time), Public badge |
-| `#F59E0B` Amber | Timer (under 30 min) |
-| `#EF4444` Red | Timer (under 5 min), expiry |
-| `#8B5CF6` Purple | Private room badge |
-
----
-
-## 🐛 Common Issues
-
-**"Missing index" Firestore error:**
-```bash
-firebase deploy --only firestore:indexes
-```
-
-**Location permission denied:**
-App will show the city picker automatically — no GPS needed.
-
-**Functions deployment fails:**
-Make sure your Firebase project is on the **Blaze plan** (required for Cloud Functions).
-
-**Expo Go can't connect:**
-Make sure your phone and computer are on the same WiFi network.
-
----
-
-## 📞 Support
-
-If you get stuck on any step, the most common fix is making sure your `firebase.js` config values exactly match what's in your Firebase Console → Project Settings.
-
-Built with ❤️ using Expo + Firebase.
