@@ -3,8 +3,8 @@
 This is my personal documentation for the Panchayat app. I built this app to create ephemeral (temporary), location-based chat rooms that disappear after 3 hours. 
 
 ### 📱 Scan to Play (Expo)
-*(Add your EAS or Expo Go QR code image here so you can easily install it on phones)*
-![Expo QR Code Placeholder](https://via.placeholder.com/200?text=Paste+QR+Code+Here)
+<img width="328" height="327" alt="{C9121C41-6270-438F-BF53-5F8A7B7C4C1E}" src="https://github.com/user-attachments/assets/ee77f493-73ff-4bc5-bd3d-afdcc6052f4d" />
+
 
 ---
 
