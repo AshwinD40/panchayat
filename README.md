@@ -3,8 +3,12 @@
 This is my personal documentation for the Panchayat app. I built this app to create ephemeral (temporary), location-based chat rooms that disappear after 3 hours. 
 
 ### 📱 Scan to Play (Expo)
-*(Add your EAS or Expo Go QR code image here so you can easily install it on phones)*
-![Expo QR Code Placeholder](https://via.placeholder.com/200?text=Paste+QR+Code+Here)
+[<img width="328" height="327" alt="{C9121C41-6270-438F-BF53-5F8A7B7C4C1E}" src="https://github.com/user-attachments/assets/ee77f493-73ff-4bc5-bd3d-afdcc6052f4d" />](https://wf-artifacts.eascdn.net/builds/internal-st/25d69fba-7b4f-49a1-9ae7-7dcde13c5769/ad6470c2-9856-427c-b661-080198960d33/019cb842-9b8a-77c9-95a9-53407ac4d55e/application-ad6470c2-9856-427c-b661-080198960d33.apk?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=75d871a1a44e598975dd84fa2341c9b0%2F20260304%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260304T095417Z&X-Amz-Expires=900&X-Amz-Signature=173dd0891f5d0633d21a6364ad4febf8595d2378cc585e79bc0e2bd4b531dbe3&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject)]
+
+-----
+
+(https://expo.dev/accounts/ashwin.sde/projects/panchayat/builds/ad6470c2-9856-427c-b661-080198960d33)
+
 
 ---
 
