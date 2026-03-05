@@ -14,7 +14,7 @@ import { db, isFirebaseConfigured, firebaseConfigError } from '../../firebase';
 import { getCurrentLocation, reverseGeocode, INDIAN_CITIES } from '../utils/locationHelper';
 import RoomCard from '../components/RoomCard';
 import { COLORS } from '../utils/theme';
-
+import { Ionicons } from '@expo/vector-icons';
 const HomeScreen = ({ navigation }) => {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -240,9 +240,9 @@ const HomeScreen = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.appName}>Panchayat</Text>
-        <View style={styles.userPill}>
-          <Text style={styles.userName}>{displayName}</Text>
-        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('About')} style={styles.topAboutButton}>
+          <Ionicons name="information-circle-outline" size={28} color={COLORS.textLight} />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -321,14 +321,26 @@ const HomeScreen = ({ navigation }) => {
         />
       )}
 
-      {/* Create Room FAB — bottom */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('CreateRoom', { currentArea, userId, displayName })}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabText}>＋ Create Room</Text>
-      </TouchableOpacity>
+      {/* Bottom Action Bar */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity
+          style={styles.bottomButton}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="person-outline" size={24} color="#fff" style={{ marginBottom: 4 }} />
+          <Text style={styles.bottomButtonText}>Profile</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.bottomButton, styles.bottomButtonPrimary]}
+          onPress={() => navigation.navigate('CreateRoom', { currentArea, userId, displayName })}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={24} color="#fff" style={{ marginBottom: 4 }} />
+          <Text style={styles.bottomButtonText}>Create Room</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Join Room Popup */}
       <Modal
@@ -422,15 +434,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   appName: { color: COLORS.text, fontSize: 26, fontWeight: '800' },
-  userPill: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  topAboutButton: {
+    padding: 8,
     borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  userName: { color: COLORS.textLight, fontSize: 13, fontWeight: '600' },
+  infoButton: {
+    padding: 4,
+  },
 
   // Tabs
   tabs: {
@@ -487,23 +500,37 @@ const styles = StyleSheet.create({
     height: 12, width: '50%',
   },
 
-  // FAB
-  fab: {
+  // Bottom Bar
+  bottomBar: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 36 : 24,
     left: 20,
     right: 20,
-    backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  bottomButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    height: 64,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
     shadowRadius: 12,
     elevation: 8,
   },
-  fabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  bottomButtonPrimary: {
+    backgroundColor: COLORS.primary,
+    borderColor: 'rgba(255, 107, 0, 0.5)',
+    shadowColor: COLORS.primary,
+  },
+  bottomButtonText: { color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
 
   // Join popup
   popupOverlay: {
